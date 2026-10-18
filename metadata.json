@@ -1,0 +1,6 @@
+{
+  "name": "lgbtqiapluslearning",
+  "description": "Clean, fast unblocked web games portal with iframe modules loaded from JSON, tab cloaking, and full-screen controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

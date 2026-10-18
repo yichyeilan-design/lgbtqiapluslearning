@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>T-Rex Runner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #090d16;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 8px;
+    }
+    #wrap {
+      position: relative;
+      border: 2px solid #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    canvas { display: block; background: #0f172a; }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .overlay.hidden { display: none; }
+    .btn {
+      background: #38bdf8;
+      color: #082f49;
+      border: none;
+      padding: 10px 22px;
+      font-weight: 800;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn:hover { background: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c" width="560" height="240"></canvas>
+    <div id="screen" class="overlay">
+      <h1 id="title" style="font-size: 26px; font-weight: 800; color: #38bdf8;">DINO DESERT RUN</h1>
+      <p id="sub" style="font-size: 13px; color: #94a3b8;">Press <b>Space</b> or <b>Up Arrow</b> or <b>Tap</b> to Jump</p>
+      <button class="btn" onclick="start()">RUN</button>
+    </div>
+  </div>
+  <div style="margin-top: 10px; font-size: 12px; color: #64748b;">
+    Space / Up / Tap to jump · Avoid obstacles!
+  </div>
+
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+
+    const groundY = 200;
+    const dino = { x: 50, y: groundY - 36, w: 24, h: 36, vy: 0, jumping: false };
+    let obstacles = [];
+    let score = 0;
+    let best = localStorage.getItem('dino_best') || 0;
+    let speed = 5;
+    let playing = false;
+    let frame = 0;
+
+    function start() {
+      dino.y = groundY - 36;
+      dino.vy = 0;
+      dino.jumping = false;
+      obstacles = [];
+      score = 0;
+      speed = 5;
+      frame = 0;
+      playing = true;
+      document.getElementById('screen').classList.add('hidden');
+    }
+
+    function jump() {
+      if (playing && !dino.jumping) {
+        dino.vy = -10.5;
+        dino.jumping = true;
+      }
+    }
+
+    window.addEventListener('keydown', e => {
+      if (['Space', 'ArrowUp'].includes(e.code)) {
+        jump();
+        e.preventDefault();
+      }
+    });
+    canvas.addEventListener('mousedown', jump);
+    canvas.addEventListener('touchstart', e => { jump(); e.preventDefault(); }, {passive: false});
+
+    function update() {
+      if (!playing) return;
+      frame++;
+
+      // Dino physics
+      dino.vy += 0.65;
+      dino.y += dino.vy;
+
+      if (dino.y >= groundY - dino.h) {
+        dino.y = groundY - dino.h;
+        dino.vy = 0;
+        dino.jumping = false;
+      }
+
+      // Speed up slowly
+      if (frame % 300 === 0 && speed < 11) speed += 0.5;
+
+      // Score
+      if (frame % 5 === 0) {
+        score++;
+        if (score > best) {
+          best = score;
+          localStorage.setItem('dino_best', best);
+        }
+      }
+
+      // Spawn obstacles (cacti or birds)
+      if (frame % Math.floor(70 + Math.random() * 50) === 0) {
+        const isDouble = Math.random() > 0.6;
+        obstacles.push({
+          x: canvas.width + 10,
+          y: groundY - 34,
+          w: isDouble ? 28 : 16,
+          h: 34
+        });
+      }
+
+      // Obstacles update & collision
+      for (let o of obstacles) {
+        o.x -= speed;
+
+        // Hit box
+        if (dino.x + dino.w - 4 > o.x && dino.x + 4 < o.x + o.w) {
+          if (dino.y + dino.h - 4 > o.y) {
+            endGame();
+            return;
+          }
+        }
+      }
+
+      obstacles = obstacles.filter(o => o.x > -40);
+    }
+
+    function draw() {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Ground
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, groundY);
+      ctx.lineTo(canvas.width, groundY);
+      ctx.stroke();
+
+      // Ground stones
+      ctx.fillStyle = '#1e293b';
+      for (let i = 0; i < canvas.width; i += 40) {
+        let x = (i - (frame * speed) % canvas.width + canvas.width) % canvas.width;
+        ctx.fillRect(x, groundY + 4, 8, 2);
+        ctx.fillRect((x + 20) % canvas.width, groundY + 12, 4, 2);
+      }
+
+      // Dino (pixel art polygon)
+      ctx.fillStyle = '#38bdf8';
+      // Body
+      ctx.fillRect(dino.x, dino.y, dino.w, dino.h - 8);
+      // Head
+      ctx.fillRect(dino.x + 8, dino.y - 8, 16, 12);
+      // Eye
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(dino.x + 18, dino.y - 6, 3, 3);
+      // Legs
+      ctx.fillStyle = '#38bdf8';
+      if (!dino.jumping && Math.floor(frame / 6) % 2 === 0) {
+        ctx.fillRect(dino.x + 4, dino.y + dino.h - 8, 4, 8);
+        ctx.fillRect(dino.x + 14, dino.y + dino.h - 5, 4, 5);
+      } else {
+        ctx.fillRect(dino.x + 4, dino.y + dino.h - 5, 4, 5);
+        ctx.fillRect(dino.x + 14, dino.y + dino.h - 8, 4, 8);
+      }
+
+      // Obstacles (Cacti)
+      ctx.fillStyle = '#10b981';
+      for (let o of obstacles) {
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+        // Arms
+        ctx.fillRect(o.x - 4, o.y + 8, 4, 10);
+        ctx.fillRect(o.x + o.w, o.y + 12, 4, 8);
+      }
+
+      // Score
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 14px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`HI: ${String(best).padStart(5, '0')}  ${String(score).padStart(5, '0')}`, canvas.width - 20, 30);
+    }
+
+    function endGame() {
+      playing = false;
+      document.getElementById('title').innerText = 'GAME OVER';
+      document.getElementById('title').style.color = '#f43f5e';
+      document.getElementById('sub').innerText = `Score: ${score} · Best: ${best}`;
+      document.getElementById('screen').classList.remove('hidden');
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
